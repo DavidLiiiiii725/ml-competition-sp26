@@ -15,10 +15,14 @@ import pandas as pd
 
 # columns used downstream by the baseline
 FEATURE_COLUMNS = [
-    "ret_1d", "ret_5d", "ret_10d", "ret_20d", "ret_60d",
-    "vol_20d", "volume_z_20d", "turnover_ma_20d",
-    "close_over_ma20", "close_over_ma60", "rsi_14",
-    "ret_5d_rank", "ret_20d_rank", "vol_20d_rank",
+    "ret_1d", "ret_3d", "ret_5d", "ret_10d", "ret_20d", "ret_60d", "ret_90d",
+    "vol_5d", "vol_20d", "vol_60d",
+    "volume_z_20d", "volume_z_60d",
+    "turnover_ma_20d", "turnover_z_20d",
+    "close_over_ma20", "close_over_ma60", "close_over_ma120",
+    "rsi_14", "atr_14", "range_10d",
+    "ret_5d_rank", "ret_20d_rank", "ret_90d_rank",
+    "vol_20d_rank", "vol_60d_rank", "turnover_ma_20d_rank",
 ]
 TARGET_COLUMN = "target_5d"
 FORWARD_HORIZON = 5
@@ -30,25 +34,53 @@ def _per_stock_features(df: pd.DataFrame) -> pd.DataFrame:
     close = df["close"]
 
     df["ret_1d"] = close.pct_change(1)
+    df["ret_3d"] = close.pct_change(3)
     df["ret_5d"] = close.pct_change(5)
     df["ret_10d"] = close.pct_change(10)
     df["ret_20d"] = close.pct_change(20)
     df["ret_60d"] = close.pct_change(60)
+    df["ret_90d"] = close.pct_change(90)
 
+    df["vol_5d"] = df["ret_1d"].rolling(5).std()
     df["vol_20d"] = df["ret_1d"].rolling(20).std()
+    df["vol_60d"] = df["ret_1d"].rolling(60).std()
 
     vol = df["volume"].astype(float)
     vol_mean = vol.rolling(20).mean()
     vol_std = vol.rolling(20).std().replace(0, np.nan)
     df["volume_z_20d"] = (vol - vol_mean) / vol_std
+    vol_mean_60 = vol.rolling(60).mean()
+    vol_std_60 = vol.rolling(60).std().replace(0, np.nan)
+    df["volume_z_60d"] = (vol - vol_mean_60) / vol_std_60
 
     if "turnover" in df.columns:
-        df["turnover_ma_20d"] = df["turnover"].astype(float).rolling(20).mean()
+        turnover = df["turnover"].astype(float)
+        df["turnover_ma_20d"] = turnover.rolling(20).mean()
+        turnover_mean = turnover.rolling(20).mean()
+        turnover_std = turnover.rolling(20).std().replace(0, np.nan)
+        df["turnover_z_20d"] = (turnover - turnover_mean) / turnover_std
     else:
         df["turnover_ma_20d"] = np.nan
+        df["turnover_z_20d"] = np.nan
 
     df["close_over_ma20"] = close / close.rolling(20).mean() - 1.0
     df["close_over_ma60"] = close / close.rolling(60).mean() - 1.0
+    df["close_over_ma120"] = close / close.rolling(120).mean() - 1.0
+
+    rolling_high = df["high"].rolling(10).max()
+    rolling_low = df["low"].rolling(10).min()
+    df["range_10d"] = (rolling_high - rolling_low) / close.replace(0, np.nan)
+
+    prev_close = close.shift(1)
+    true_range = pd.concat(
+        [
+            (df["high"] - df["low"]).abs(),
+            (df["high"] - prev_close).abs(),
+            (df["low"] - prev_close).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+    df["atr_14"] = true_range.rolling(14).mean()
 
     delta = close.diff()
     up = delta.clip(lower=0).rolling(14).mean()
@@ -62,7 +94,7 @@ def _per_stock_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def _cross_sectional_ranks(panel: pd.DataFrame) -> pd.DataFrame:
     """Daily cross-sectional rank of selected features (values in [0, 1])."""
-    for base in ["ret_5d", "ret_20d", "vol_20d"]:
+    for base in ["ret_5d", "ret_20d", "ret_90d", "vol_20d", "vol_60d", "turnover_ma_20d"]:
         panel[f"{base}_rank"] = (
             panel.groupby("date")[base].rank(method="average", pct=True)
         )
@@ -90,11 +122,9 @@ def build_features(prices: pd.DataFrame) -> pd.DataFrame:
 
     prices = prices.copy()
     prices["date"] = pd.to_datetime(prices["date"])
-    panel = (
-        prices.groupby("stock_code", group_keys=False)
-        .apply(_per_stock_features)
-        .reset_index(drop=True)
-    )
+    panel = prices.groupby("stock_code", group_keys=True).apply(_per_stock_features)
+    panel = panel.reset_index(level=0).rename(columns={"stock_code": "stock_code"})
+    panel = panel.reset_index(drop=True)
     panel = _cross_sectional_ranks(panel)
     return panel
 
