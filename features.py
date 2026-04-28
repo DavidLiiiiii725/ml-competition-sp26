@@ -123,7 +123,7 @@ def build_features(prices: pd.DataFrame) -> pd.DataFrame:
     prices = prices.copy()
     prices["date"] = pd.to_datetime(prices["date"])
     panel = prices.groupby("stock_code", group_keys=True).apply(_per_stock_features)
-    panel = panel.reset_index(level=0).rename(columns={"stock_code": "stock_code"})
+    panel = panel.reset_index(level=0)
     panel = panel.reset_index(drop=True)
     panel = _cross_sectional_ranks(panel)
     return panel

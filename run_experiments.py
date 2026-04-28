@@ -192,7 +192,16 @@ def run_tft_cv(panel: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
             full_df[["stock_code", "date", TARGET_COLUMN, "turnover_ma_20d", "vol_20d"]],
             on=["stock_code", "date"],
             how="left",
+            suffixes=("", "_feature"),
         )
+        for col in ["turnover_ma_20d", "vol_20d"]:
+            feature_col = f"{col}_feature"
+            if feature_col in pred_df.columns:
+                if col in pred_df.columns:
+                    pred_df[col] = pred_df[col].fillna(pred_df[feature_col])
+                else:
+                    pred_df[col] = pred_df[feature_col]
+                pred_df = pred_df.drop(columns=[feature_col])
         pred_df = pred_df[(pred_df["date"] >= val_start) & (pred_df["date"] <= val_end)]
         metrics = evaluate_predictions(
             pred_df,

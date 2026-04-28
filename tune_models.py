@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+import numpy as np
 import optuna
 import pandas as pd
 
@@ -55,8 +56,8 @@ def main() -> None:
                 TARGET_COLUMN,
                 lookback=args.lookback,
             )
-            train_mask = (seq_dates >= train_start.to_datetime64()) & (seq_dates <= train_end.to_datetime64())
-            val_mask = (seq_dates >= val_start.to_datetime64()) & (seq_dates <= val_end.to_datetime64())
+            train_mask = (seq_dates >= np.datetime64(train_start)) & (seq_dates <= np.datetime64(train_end))
+            val_mask = (seq_dates >= np.datetime64(val_start)) & (seq_dates <= np.datetime64(val_end))
             model = train_rnn_model(
                 seq_x[train_mask],
                 seq_y[train_mask],
