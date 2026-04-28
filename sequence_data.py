@@ -29,7 +29,9 @@ def make_rnn_sequences(
         y = grp[target_col].to_numpy()
         date_arr = grp["date"].to_numpy()
         for idx in range(lookback - 1, len(grp)):
-            seq = values[idx - lookback + 1: idx + 1]
+            start_idx = idx - lookback + 1
+            end_idx = idx + 1
+            seq = values[start_idx:end_idx]
             if np.isnan(seq).any() or np.isnan(y[idx]):
                 continue
             sequences.append(seq)

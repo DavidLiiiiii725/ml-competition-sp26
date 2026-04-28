@@ -5,6 +5,7 @@ import pandas as pd
 
 MIN_STOCKS = 30
 MAX_WEIGHT = 0.10
+MAX_WEIGHT_ITERATIONS = 50
 
 
 def _filter_scores(
@@ -56,7 +57,7 @@ def build_portfolio(
     ranks = np.arange(len(chosen), 0, -1, dtype=float)
     w = pd.Series(ranks / ranks.sum(), index=chosen.index)
 
-    for _ in range(50):
+    for _ in range(MAX_WEIGHT_ITERATIONS):
         over = w > max_weight
         if not over.any():
             break

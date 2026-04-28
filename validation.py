@@ -36,7 +36,7 @@ def evaluate_predictions(
     max_vol: float | None = None,
     max_vol_quantile: float | None = None,
 ) -> dict:
-    pred_df = pred_df.dropna(subset=["score", target_col]).copy()
+    pred_df = pred_df.dropna(subset=["score", target_col])
     ic = rank_ic(
         pred_df[target_col].to_numpy(),
         pred_df["score"].to_numpy(),
