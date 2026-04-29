@@ -30,13 +30,12 @@ from features import (
     FEATURE_COLUMNS, TARGET_COLUMN, FORWARD_HORIZON,
     build_features, training_frame, prediction_frame,
 )
+from portfolio import build_portfolio
 
 DATA_DIR = Path(__file__).parent / "data"
 VAL_DAYS = 10               # number of trading days in the validation window
 EMBARGO_DAYS = 5            # gap between train end and val start (>= FORWARD_HORIZON
                             # so training targets don't reach into val dates)
-MIN_STOCKS = 30             # rule: portfolio must hold >= 30 names
-MAX_WEIGHT = 0.10           # rule: per-stock weight cap
 DEFAULT_TOP_K = 50          # baseline picks top-50 by predicted score
 
 
@@ -74,37 +73,6 @@ def rank_ic(y_true: np.ndarray, y_pred: np.ndarray, dates: np.ndarray) -> float:
     return float(np.mean(ics)) if ics else float("nan")
 
 
-def build_portfolio(scores: pd.Series, top_k: int = DEFAULT_TOP_K) -> pd.Series:
-    """Top-K names, weight proportional to (rank) then capped at MAX_WEIGHT.
-
-    We use rank-weights rather than score-weights so pathological score scales
-    do not produce a single dominant name.  After capping at 10% we redistribute
-    spillover to uncapped names and iterate until feasible.
-    """
-    if top_k < MIN_STOCKS:
-        raise ValueError(f"top_k must be >= {MIN_STOCKS} (rule)")
-    chosen = scores.sort_values(ascending=False).head(top_k).copy()
-
-    # Rank-based weights (best stock gets largest weight, then normalize).
-    ranks = np.arange(top_k, 0, -1, dtype=float)
-    w = pd.Series(ranks / ranks.sum(), index=chosen.index)
-
-    # Iteratively cap at MAX_WEIGHT and redistribute to uncapped names.
-    for _ in range(50):
-        over = w > MAX_WEIGHT
-        if not over.any():
-            break
-        excess = (w[over] - MAX_WEIGHT).sum()
-        w[over] = MAX_WEIGHT
-        free = ~over
-        if not free.any():
-            break
-        w[free] += excess * w[free] / w[free].sum()
-
-    assert abs(w.sum() - 1.0) < 1e-6, f"weights sum to {w.sum()}"
-    assert (w <= MAX_WEIGHT + 1e-9).all(), "cap violated"
-    assert (w > 0).sum() >= MIN_STOCKS, "too few names"
-    return w
 
 
 def main():

@@ -177,6 +177,72 @@ python validate_submission.py submissions/week1.csv
 python download_data.py --update --end 20260510
 ```
 
+## Internal Schedule (aligned to competition milestones)
+
+| Date (CST) | Milestone | Internal action |
+| --- | --- | --- |
+| 2026-04-21 | Data snapshot available | Full download + baseline run + feature sanity checks |
+| 2026-05-03 | Submission 1 deadline | Refresh data, freeze model selection for week 1, generate submission |
+| 2026-05-06 to 05-08 | Evaluation window 1 | Backtest week 1 portfolio, log results |
+| 2026-05-10 | Submission 2 deadline | Refresh data, retrain best model, generate submission |
+| 2026-05-11 to 05-15 | Evaluation window 2 | Backtest week 2 portfolio, log results |
+| 2026-06-11 | Report deadline | Final report + reproducibility audit |
+
+## Environment & dependencies
+
+We standardize on **PyTorch + PyTorch Forecasting (TFT)** for deep learning, and **Optuna** for tuning:
+
+```bash
+pip install -r requirements.txt
+```
+
+Pinned versions in `requirements.txt` keep results reproducible across reruns. If using GPU, document the CUDA version in your report alongside the model config and random seed.
+
+## Experimentation workflow
+
+1. **Download / refresh data**
+   ```bash
+   python download_data.py --start 20250101 --end 20260421
+   python download_data.py --update --end 20260503
+   python download_data.py --update --end 20260510
+   ```
+2. **Run rolling-window validation**
+   ```bash
+   python run_experiments.py --model ridge --scalers standard,minmax,robust
+   python run_experiments.py --model rnn --lookback 20 --stationary
+   python run_experiments.py --model tft --lookback 30 --stationary
+   ```
+3. **Tune deep models (Optuna)**
+   ```bash
+   python tune_models.py --model rnn --trials 30
+   python tune_models.py --model tft --trials 30
+   ```
+4. **Generate submissions**
+   ```bash
+   python generate_submission.py --model ridge --as-of 20260503 --out submissions/week1.csv
+   python generate_submission.py --model tft --as-of 20260510 --out submissions/week2.csv
+   python validate_submission.py submissions/week1.csv
+   python validate_submission.py submissions/week2.csv
+   ```
+5. **Backtest evaluation windows locally**
+   ```bash
+   python backtest.py submissions/week1.csv
+   python backtest.py submissions/week2.csv
+   ```
+
+## Reproducibility checklist
+
+- Record the random seed (`config.py`) and model hyperparameters for every run.
+- Note the exact package versions (see `requirements.txt`) and hardware details (CPU/GPU + CUDA version).
+- Keep the training/eval split dates in your report to demonstrate no leakage.
+- Archive the configuration used to generate each submission file.
+
+## Report checklist
+
+- Compare **XGBoost vs Linear (Ridge/Lasso) vs RNN vs TFT** on Rank IC and portfolio metrics.
+- Document the scaler choice (standard/minmax/robust) and the stationarity transform used for sequential models.
+- List all data sources (including any external data) with timestamps ≤ submission deadlines.
+
 ## Files
 
 | File | Purpose |
